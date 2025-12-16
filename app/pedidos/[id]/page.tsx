@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { getPedidoById } from '@/lib/supabase-queries'
+import { getPedidoById, actualizarEstadoPedido } from '@/lib/supabase-queries'
+import { showSuccess, showError } from '@/lib/swal'
 import styles from './detalle.module.css'
 
 interface OrderItem {
@@ -89,6 +90,7 @@ export default function DetallePedidoPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
 
   // Render inicial - validar orderId
   if (!orderId || orderId === 'undefined' || orderId === 'null') {
@@ -270,6 +272,190 @@ export default function DetallePedidoPage() {
     loadOrder()
   }, [orderId])
 
+  // Función para recargar el pedido
+  const reloadOrder = async () => {
+    if (!orderId) return
+    
+    const cleanOrderId = orderId.replace(/^#/, '')
+    setLoading(true)
+    setError(null)
+
+    try {
+      const pedidoData = await getPedidoById(cleanOrderId)
+      
+      if (!pedidoData) {
+        setOrder(null)
+        setError(`No se encontró el pedido con ID: ${orderId}`)
+        return
+      }
+
+      let itemsArray = pedidoData.items
+      if (!Array.isArray(itemsArray)) {
+        itemsArray = []
+      }
+
+      const items: OrderItem[] = itemsArray.map((item: any) => {
+        let detalles = ''
+        if (item.variante && item.variante.atributos) {
+          if (typeof item.variante.atributos === 'object') {
+            detalles = Object.entries(item.variante.atributos)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join(', ')
+          }
+        }
+
+        let imagen = '/api/placeholder/80/80'
+        if (item.producto) {
+          if (item.producto.imagenes && Array.isArray(item.producto.imagenes) && item.producto.imagenes.length > 0) {
+            const imagenesOrdenadas = [...item.producto.imagenes].sort((a, b) => {
+              if (a.es_principal && !b.es_principal) return -1
+              if (!a.es_principal && b.es_principal) return 1
+              return (a.orden || 0) - (b.orden || 0)
+            })
+            imagen = imagenesOrdenadas[0]?.url || imagen
+          }
+        }
+        
+        if (item.variante && item.variante.imagen_url) {
+          imagen = item.variante.imagen_url
+        }
+
+        return {
+          id: item.id,
+          nombre: item.nombre_producto || 'Producto',
+          imagen,
+          sku: item.sku || item.producto?.sku || 'N/A',
+          detalles,
+          precio: `Bs. ${(item.precio_unitario || 0).toFixed(2)}`,
+          cantidad: item.cantidad || 1
+        }
+      })
+
+      const historial: OrderHistory[] = (pedidoData.historial || []).map((h: any) => ({
+        estado: h.estado || 'Actualización',
+        fecha: h.fecha ? new Date(h.fecha).toLocaleString('es-ES', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : '',
+        descripcion: h.descripcion || h.comentario || '',
+        icono: h.estado?.toLowerCase().includes('enviado') ? 'truck' as const :
+               h.estado?.toLowerCase().includes('pago') ? 'check' as const :
+               'hourglass' as const,
+        completado: h.completado !== false
+      }))
+
+      if (historial.length === 0) {
+        historial.push({
+          estado: 'Pedido Creado',
+          fecha: new Date(pedidoData.fecha_pedido || pedidoData.created_at).toLocaleString('es-ES', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          descripcion: 'El pedido ha sido creado.',
+          icono: 'check',
+          completado: true
+        })
+      }
+
+      const orderDetail: OrderDetail = {
+        id: pedidoData.numero_pedido || pedidoData.id.slice(0, 8),
+        estado: (pedidoData.estado || 'Pendiente') as OrderDetail['estado'],
+        items,
+        subtotal: `Bs. ${(pedidoData.subtotal || 0).toFixed(2)}`,
+        descuento: pedidoData.descuento ? `-Bs. ${pedidoData.descuento.toFixed(2)}` : 'Bs. 0.00',
+        total: `Bs. ${(pedidoData.total || 0).toFixed(2)}`,
+        cliente: {
+          nombre: `${pedidoData.nombre_cliente || ''} ${pedidoData.apellido_cliente || ''}`.trim() || 'Cliente',
+          email: pedidoData.email_cliente || '',
+          telefono: pedidoData.telefono_cliente || ''
+        },
+        direccionEnvio: {
+          calle: pedidoData.direccion_completa || '',
+          ciudad: pedidoData.ciudad_envio || '',
+          pais: 'Bolivia',
+          metodo: pedidoData.metodo_envio || 'Envío Estándar'
+        },
+        direccionFacturacion: pedidoData.direccion_completa || 'Igual que la dirección de envío',
+        historial
+      }
+
+      setOrder(orderDetail)
+      setError(null)
+    } catch (error: any) {
+      console.error('❌ Error recargando pedido:', error)
+      setError(`Error al recargar el pedido: ${error?.message || 'Error desconocido'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Función para cambiar el estado del pedido
+  const handleChangeStatus = async (nuevoEstado: 'Pendiente' | 'Procesando' | 'Enviado' | 'Completado' | 'Cancelado') => {
+    if (!order) return
+    
+    setUpdatingStatus(true)
+    try {
+      await actualizarEstadoPedido(order.id, nuevoEstado)
+      await showSuccess('Estado actualizado', `El pedido ha sido actualizado a: ${nuevoEstado}`)
+      await reloadOrder()
+    } catch (error: any) {
+      console.error('Error actualizando estado:', error)
+      await showError('Error', error?.message || 'No se pudo actualizar el estado del pedido')
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
+
+  // Función para marcar como pagado
+  const handleMarkAsPaid = async () => {
+    if (!order) return
+    
+    if (order.estado === 'Completado' || order.estado === 'Cancelado') {
+      await showError('Error', 'No se puede cambiar el estado de un pedido completado o cancelado')
+      return
+    }
+    
+    await handleChangeStatus('Procesando')
+  }
+
+  // Función para cancelar pedido
+  const handleCancelOrder = async () => {
+    if (!order) return
+    
+    if (order.estado === 'Completado') {
+      await showError('Error', 'No se puede cancelar un pedido completado')
+      return
+    }
+    
+    if (order.estado === 'Cancelado') {
+      await showError('Error', 'Este pedido ya está cancelado')
+      return
+    }
+
+    const confirmed = await new Promise<boolean>((resolve) => {
+      if (typeof window !== 'undefined' && window.confirm) {
+        resolve(window.confirm('¿Estás seguro de que deseas cancelar este pedido? Esta acción no se puede deshacer.'))
+      } else {
+        resolve(true)
+      }
+    })
+
+    if (confirmed) {
+      await handleChangeStatus('Cancelado')
+    }
+  }
+
+  // Función para imprimir factura
+  const handlePrintInvoice = () => {
+    window.print()
+  }
+
   // Siempre mostrar algo mientras carga
   if (loading) {
     return (
@@ -338,13 +524,13 @@ export default function DetallePedidoPage() {
           </span>
         </div>
         <div className={styles.headerActions}>
-          <button className={styles.actionButton}>
+          <button 
+            className={styles.actionButton}
+            onClick={handlePrintInvoice}
+            title="Imprimir factura del pedido"
+          >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>print</span>
             <span>Imprimir Factura</span>
-          </button>
-          <button className={styles.actionButton}>
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>archive</span>
-            <span>Archivar</span>
           </button>
         </div>
       </div>
@@ -495,19 +681,38 @@ export default function DetallePedidoPage() {
               <div className={styles.actions}>
                 <div className={styles.actionGroup}>
                   <label htmlFor="order-status" className={styles.actionLabel}>Cambiar Estado</label>
-                  <select id="order-status" className={styles.statusSelect} defaultValue={order.estado}>
-                    <option>Pendiente</option>
-                    <option>Pagado</option>
-                    <option>Enviado</option>
-                    <option>Completado</option>
-                    <option>Cancelado</option>
+                  <select 
+                    id="order-status" 
+                    className={styles.statusSelect} 
+                    value={order.estado}
+                    onChange={(e) => {
+                      const nuevoEstado = e.target.value as OrderDetail['estado']
+                      if (nuevoEstado !== order.estado) {
+                        handleChangeStatus(nuevoEstado)
+                      }
+                    }}
+                    disabled={updatingStatus || order.estado === 'Cancelado' || order.estado === 'Completado'}
+                  >
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Procesando">Procesando</option>
+                    <option value="Enviado">Enviado</option>
+                    <option value="Completado">Completado</option>
+                    <option value="Cancelado">Cancelado</option>
                   </select>
                 </div>
-                <button className={styles.primaryButton}>
-                  Marcar como Pagado
+                <button 
+                  className={styles.primaryButton}
+                  onClick={handleMarkAsPaid}
+                  disabled={updatingStatus || order.estado === 'Procesando' || order.estado === 'Completado' || order.estado === 'Cancelado'}
+                >
+                  {updatingStatus ? 'Actualizando...' : 'Marcar como Pagado'}
                 </button>
-                <button className={styles.dangerButton}>
-                  Cancelar Pedido
+                <button 
+                  className={styles.dangerButton}
+                  onClick={handleCancelOrder}
+                  disabled={updatingStatus || order.estado === 'Cancelado' || order.estado === 'Completado'}
+                >
+                  {updatingStatus ? 'Cancelando...' : 'Cancelar Pedido'}
                 </button>
               </div>
             </div>

@@ -1,0 +1,274 @@
+.container {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  background-color: var(--background-light);
+  min-height: 100vh;
+}
+
+.header {
+  margin-bottom: 32px;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--slate-900);
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.description {
+  font-size: 16px;
+  color: var(--slate-600);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.card {
+  background-color: var(--white);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--slate-200);
+}
+
+.cardTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--slate-900);
+  margin: 0 0 24px 0;
+  line-height: 1.2;
+}
+
+.formGroup {
+  margin-bottom: 24px;
+}
+
+.label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--slate-700);
+  margin-bottom: 8px;
+}
+
+.required {
+  color: #ef4444;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid var(--slate-300);
+  border-radius: 8px;
+  background-color: var(--white);
+  color: var(--slate-900);
+  transition: all 0.2s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(19, 127, 236, 0.1);
+}
+
+.helpText {
+  display: block;
+  font-size: 12px;
+  color: var(--slate-500);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.logoSection {
+  margin-top: 8px;
+}
+
+.logoPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.logoImage {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 2px solid var(--slate-200);
+  background-color: var(--slate-50);
+}
+
+.logoActions {
+  display: flex;
+  gap: 8px;
+}
+
+.changeButton,
+.removeButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.changeButton {
+  background-color: var(--primary);
+  color: white;
+}
+
+.changeButton:hover:not(:disabled) {
+  background-color: rgba(19, 127, 236, 0.9);
+}
+
+.removeButton {
+  background-color: var(--slate-100);
+  color: var(--slate-700);
+}
+
+.removeButton:hover:not(:disabled) {
+  background-color: var(--slate-200);
+}
+
+.changeButton:disabled,
+.removeButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.logoPlaceholder {
+  width: 120px;
+  height: 120px;
+  border: 2px dashed var(--slate-300);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: var(--slate-50);
+  color: var(--slate-500);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px;
+}
+
+.logoPlaceholder:hover:not(.uploading) {
+  border-color: var(--primary);
+  background-color: rgba(19, 127, 236, 0.05);
+  color: var(--primary);
+}
+
+.logoPlaceholder.uploading {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.actions {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--slate-200);
+}
+
+.saveButton {
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background-color: var(--primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.saveButton:hover:not(:disabled) {
+  background-color: rgba(19, 127, 236, 0.9);
+}
+
+.saveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.preview {
+  margin-top: 16px;
+}
+
+.previewSidebar {
+  background-color: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  padding: 16px;
+  width: 256px;
+}
+
+.previewLogo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.previewLogoIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.previewLogoTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--slate-900);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.previewLogoSubtitle {
+  font-size: 14px;
+  color: var(--slate-500);
+  margin: 0;
+  line-height: 1.2;
+  font-weight: 400;
+}
+
+.previewNote {
+  font-size: 12px;
+  color: var(--slate-500);
+  margin-top: 12px;
+  font-style: italic;
+}
+
+@media (min-width: 768px) {
+  .content {
+    flex-direction: row;
+  }
+
+  .card {
+    flex: 1;
+  }
+}
+

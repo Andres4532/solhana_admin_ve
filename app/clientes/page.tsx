@@ -11,7 +11,7 @@ interface Client {
   nombre: string
   tipo: 'VIP' | 'Recurrente' | 'Nuevo'
   whatsapp: string
-  ciudad: string
+  departamento: string
   fechaRegistro: string
   pedidos: number
   totalGastado: string
@@ -65,7 +65,7 @@ export default function ClientesPage() {
         nombre: `${cliente.nombre} ${cliente.apellido || ''}`.trim(),
         tipo: cliente.tipo as 'VIP' | 'Recurrente' | 'Nuevo',
         whatsapp: cliente.whatsapp || cliente.telefono || 'Sin número',
-        ciudad: 'N/A', // No hay campo ciudad en la BD, se puede agregar después
+        departamento: (cliente as any).departamento || 'N/A',
         fechaRegistro: new Date(cliente.fecha_registro).toLocaleDateString('es-ES', {
           day: '2-digit',
           month: '2-digit',
@@ -200,12 +200,6 @@ export default function ClientesPage() {
           >
             Recurrente
           </button>
-          <button
-            className={`${styles.filterButton} ${filterType === 'VIP' ? styles.active : ''}`}
-            onClick={() => setFilterType('VIP')}
-          >
-            VIP
-          </button>
         </div>
       </div>
 
@@ -216,7 +210,7 @@ export default function ClientesPage() {
               <tr>
                 <th>Nombre</th>
                 <th>Número de WhatsApp</th>
-                <th>Ciudad</th>
+                <th>Departamento</th>
                 <th>Fecha de Registro</th>
                 <th>Historial de Compras</th>
                 <th>
@@ -254,7 +248,7 @@ export default function ClientesPage() {
                       </div>
                     </td>
                     <td className={styles.whatsapp}>{client.whatsapp}</td>
-                    <td className={styles.ciudad}>{client.ciudad}</td>
+                    <td className={styles.ciudad}>{client.departamento}</td>
                     <td className={styles.fecha}>{client.fechaRegistro}</td>
                     <td>
                       <div className={styles.purchaseHistory}>

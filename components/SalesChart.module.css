@@ -120,5 +120,43 @@
   padding-top: 8px;
 }
 
+.dateSelector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dateLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--slate-700);
+  white-space: nowrap;
+}
+
+.dateInput {
+  padding: 8px 12px;
+  border: 1px solid var(--slate-300);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--slate-700);
+  background-color: var(--white);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 150px;
+  font-family: inherit;
+}
+
+.dateInput:hover {
+  border-color: var(--slate-400);
+}
+
+.dateInput:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(19, 127, 236, 0.1);
+}
+
 
 

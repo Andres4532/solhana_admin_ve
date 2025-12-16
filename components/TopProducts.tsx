@@ -9,6 +9,7 @@ interface Product {
   name: string
   sku: string
   sold: number
+  totalAmount: number
   image: string
 }
 
@@ -19,7 +20,7 @@ export default function TopProducts() {
   useEffect(() => {
     async function loadProducts() {
       try {
-        const data = await getProductosMasVendidos(3)
+        const data = await getProductosMasVendidos(5)
         setProducts(data)
       } catch (error: any) {
         console.error('Error cargando productos más vendidos:', error)
@@ -44,9 +45,13 @@ export default function TopProducts() {
       </div>
       <div className={styles.list}>
         {loading ? (
-          <div style={{ padding: '20px', textAlign: 'center' }}>Cargando...</div>
+          <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>Cargando...</div>
         ) : products.length === 0 ? (
-          <div style={{ padding: '20px', textAlign: 'center' }}>No hay productos</div>
+          <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+            <div style={{ marginBottom: '8px', fontSize: '18px' }}>📦</div>
+            <div style={{ fontSize: '14px', marginBottom: '4px' }}>No hay productos vendidos aún</div>
+            <div style={{ fontSize: '12px', color: '#999' }}>Los productos aparecerán aquí cuando se realicen ventas</div>
+          </div>
         ) : (
           products.map((product) => (
             <div key={product.sku} className={styles.item}>
@@ -60,8 +65,8 @@ export default function TopProducts() {
                 <div className={styles.sku}>SKU: {product.sku}</div>
               </div>
               <div className={styles.soldContainer}>
-                <div className={styles.sold}>{product.sold}</div>
-                <div className={styles.soldLabel}>vendidos</div>
+                <div className={styles.sold}>Bs. {product.totalAmount.toFixed(2)}</div>
+                <div className={styles.soldLabel}>total vendido</div>
               </div>
             </div>
           ))
