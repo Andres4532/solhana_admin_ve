@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Sidebar from '@/components/Sidebar'
+import FontLoader from '@/components/FontLoader'
 import './globals.css'
 import styles from './layout.module.css'
 
@@ -16,6 +17,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
+        <FontLoader />
         <div className={styles.container}>
           <Sidebar />
           <main className={styles.main}>
