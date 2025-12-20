@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getCategorias } from '@/lib/supabase-queries'
 import { supabase } from '@/lib/supabase'
-import { showSuccess, showError } from '@/lib/swal'
+import { showSuccess, showError, showConfirm } from '@/lib/swal'
+import { uploadImage, deleteImage } from '@/lib/supabase-storage'
 import styles from './categorias.module.css'
 
 interface Category {
@@ -14,6 +15,7 @@ interface Category {
   icono: string | null
   orden: number
   estado: 'Activo' | 'Inactivo'
+  imagen_url: string | null
 }
 
 const getIconName = (icono: string | null) => {
@@ -44,12 +46,17 @@ export default function CategoriasPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [formData, setFormData] = useState({
     nombre: '',
     descripcion: '',
     icono: '',
     orden: 1,
-    activa: false
+    activa: false,
+    imagen_url: null as string | null,
+    imagen_file: null as File | null
   })
 
   // Cargar categorías de Supabase
@@ -88,48 +95,149 @@ export default function CategoriasPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const { data, error } = await supabase
-        .from('categorias')
-        .insert({
-          nombre: formData.nombre,
-          descripcion: formData.descripcion || null,
-          icono: formData.icono || null,
-          orden: formData.orden,
-          estado: formData.activa ? 'Activo' : 'Inactivo'
-        })
-        .select()
-        .single()
+      let imagenUrl = formData.imagen_url
 
-      if (error) throw error
+      // Subir imagen si se seleccionó una nueva
+      if (formData.imagen_file) {
+        setUploadingImage(true)
+        try {
+          imagenUrl = await uploadImage(formData.imagen_file, 'categorias', 'images')
+        } catch (error: any) {
+          throw new Error(`Error al subir imagen: ${error.message}`)
+        } finally {
+          setUploadingImage(false)
+        }
+      }
+
+      if (editingId) {
+        // Actualizar categoría existente
+        const { data, error } = await supabase
+          .from('categorias')
+          .update({
+            nombre: formData.nombre,
+            descripcion: formData.descripcion || null,
+            icono: formData.icono || null,
+            orden: formData.orden,
+            estado: formData.activa ? 'Activo' : 'Inactivo',
+            imagen_url: imagenUrl
+          })
+          .eq('id', editingId)
+          .select()
+          .single()
+
+        if (error) throw error
+
+        await showSuccess('Categoría actualizada', 'La categoría ha sido actualizada exitosamente')
+      } else {
+        // Crear nueva categoría
+        const { data, error } = await supabase
+          .from('categorias')
+          .insert({
+            nombre: formData.nombre,
+            descripcion: formData.descripcion || null,
+            icono: formData.icono || null,
+            orden: formData.orden,
+            estado: formData.activa ? 'Activo' : 'Inactivo',
+            imagen_url: imagenUrl
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        await showSuccess('Categoría creada', 'La categoría ha sido creada exitosamente')
+      }
 
       // Recargar categorías
       const nuevasCategorias = await getCategorias()
       setCategories(nuevasCategorias || [])
 
       setIsModalOpen(false)
+      setEditingId(null)
+      setImagePreview(null)
       setFormData({
         nombre: '',
         descripcion: '',
         icono: '',
         orden: 1,
-        activa: false
+        activa: false,
+        imagen_url: null,
+        imagen_file: null
       })
-      await showSuccess('Categoría creada', 'La categoría ha sido creada exitosamente')
     } catch (error: any) {
-      console.error('Error creando categoría:', error)
-      await showError('Error al crear categoría', error?.message || 'Error desconocido al crear la categoría')
+      console.error('Error:', error)
+      await showError('Error', error?.message || 'Error desconocido al guardar la categoría')
     }
   }
 
   const handleClose = () => {
     setIsModalOpen(false)
+    setEditingId(null)
+    setImagePreview(null)
     setFormData({
       nombre: '',
       descripcion: '',
       icono: '',
       orden: 1,
-      activa: false
+      activa: false,
+      imagen_url: null,
+      imagen_file: null
     })
+  }
+
+  const handleEditClick = async (category: Category) => {
+    setEditingId(category.id)
+    setFormData({
+      nombre: category.nombre,
+      descripcion: category.descripcion || '',
+      icono: category.icono || '',
+      orden: category.orden,
+      activa: category.estado === 'Activo',
+      imagen_url: category.imagen_url,
+      imagen_file: null
+    })
+    if (category.imagen_url) {
+      setImagePreview(category.imagen_url)
+    }
+    setIsModalOpen(true)
+  }
+
+  const handleDeleteClick = async (id: string) => {
+    try {
+      const result = await showConfirm('¿Eliminar categoría?', 'Esta acción no se puede deshacer.')
+      if (!result.isConfirmed) return
+
+      const { error } = await supabase
+        .from('categorias')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+
+      const nuevasCategorias = await getCategorias()
+      setCategories(nuevasCategorias || [])
+      await showSuccess('Categoría eliminada', 'La categoría ha sido eliminada exitosamente')
+    } catch (error: any) {
+      console.error('Error eliminando categoría:', error)
+      await showError('Error', error?.message || 'Error al eliminar la categoría')
+    }
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setFormData({ ...formData, imagen_file: file })
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeImage = () => {
+    setFormData({ ...formData, imagen_file: null, imagen_url: null })
+    setImagePreview(null)
   }
 
   return (
@@ -207,10 +315,20 @@ export default function CategoriasPage() {
                     </td>
                     <td>
                       <div className={styles.actions}>
-                        <button className={styles.actionButton} aria-label="Editar" title="Editar">
+                        <button 
+                          className={styles.actionButton} 
+                          aria-label="Editar" 
+                          title="Editar"
+                          onClick={() => handleEditClick(category)}
+                        >
                           <span className="material-symbols-outlined">edit</span>
                         </button>
-                        <button className={`${styles.actionButton} ${styles.delete}`} aria-label="Eliminar" title="Eliminar">
+                        <button 
+                          className={`${styles.actionButton} ${styles.delete}`} 
+                          aria-label="Eliminar" 
+                          title="Eliminar"
+                          onClick={() => handleDeleteClick(category.id)}
+                        >
                           <span className="material-symbols-outlined">delete</span>
                         </button>
                       </div>
@@ -229,13 +347,15 @@ export default function CategoriasPage() {
           <div className={styles.modalOverlay} onClick={handleClose} />
           <div className={styles.modal}>
             <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>Crear Nueva Categoría</h2>
+              <h2 className={styles.modalTitle}>
+                {editingId ? 'Editar Categoría' : 'Crear Nueva Categoría'}
+              </h2>
               <button className={styles.modalClose} onClick={handleClose}>
                 <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
               </button>
             </div>
             <p className={styles.modalSubtitle}>
-              Rellena los detalles de la nueva categoría.
+              {editingId ? 'Actualiza los detalles de la categoría.' : 'Rellena los detalles de la nueva categoría.'}
             </p>
             <form onSubmit={handleSubmit} className={styles.modalForm}>
               <div className={styles.formGroup}>
@@ -261,6 +381,70 @@ export default function CategoriasPage() {
                   value={formData.descripcion}
                   onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                 />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.label}>Imagen de la Categoría</label>
+                <div style={{
+                  border: '2px dashed #ccc',
+                  borderRadius: '8px',
+                  padding: '20px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  marginBottom: '10px',
+                  backgroundColor: '#f9f9f9'
+                }}>
+                  {imagePreview ? (
+                    <div>
+                      <img 
+                        src={imagePreview} 
+                        alt="Vista previa" 
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '200px',
+                          marginBottom: '10px',
+                          borderRadius: '4px'
+                        }} 
+                      />
+                      <p style={{ margin: '10px 0', color: '#666' }}>Imagen seleccionada</p>
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#ff6b6b',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Eliminar imagen
+                      </button>
+                    </div>
+                  ) : (
+                    <label style={{ cursor: 'pointer' }}>
+                      <span className="material-symbols-outlined" style={{
+                        fontSize: '48px',
+                        color: '#999',
+                        display: 'block',
+                        marginBottom: '10px'
+                      }}>
+                        image
+                      </span>
+                      <p style={{ color: '#666', margin: '10px 0' }}>
+                        Haz clic para seleccionar una imagen
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  )}
+                </div>
               </div>
 
               <div className={styles.formGroup}>
@@ -306,14 +490,16 @@ export default function CategoriasPage() {
                   type="button"
                   className={styles.cancelButton}
                   onClick={handleClose}
+                  disabled={uploadingImage}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   className={styles.createButton}
+                  disabled={uploadingImage}
                 >
-                  Crear Categoría
+                  {uploadingImage ? 'Subiendo imagen...' : (editingId ? 'Actualizar Categoría' : 'Crear Categoría')}
                 </button>
               </div>
             </form>

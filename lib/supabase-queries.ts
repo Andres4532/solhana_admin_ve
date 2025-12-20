@@ -538,6 +538,136 @@ export async function getCategoriaById(id: string) {
   return data
 }
 
+export async function actualizarCategoria(
+  id: string,
+  datos: {
+    nombre?: string
+    descripcion?: string | null
+    icono?: string | null
+    orden?: number
+    estado?: 'Activo' | 'Inactivo'
+    imagen_url?: string | null
+  }
+) {
+  const { data, error } = await supabase
+    .from('categorias')
+    .update(datos)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Obtiene el siguiente número secuencial para un SKU basado en la categoría
+ * @param categoriaId ID de la categoría
+ * @returns El siguiente número disponible (ej: 1, 2, 3...)
+ */
+export async function getNextSkuNumberByCategory(categoriaId: string): Promise<number> {
+  try {
+    // Buscar todos los productos de esa categoría
+    const { data, error } = await supabase
+      .from('productos')
+      .select('sku')
+      .eq('categoria_id', categoriaId)
+
+    if (error) {
+      console.error('Error obteniendo siguiente número SKU por categoría:', error)
+      return 1 // Retornar 1 si hay error
+    }
+
+    if (!data || data.length === 0) {
+      return 1 // Si no hay productos en esa categoría, empezar en 1
+    }
+
+    // Extraer los números de los SKUs existentes
+    // El formato es: CAT-TP-XXX donde XXX es el número (puede haber más segmentos)
+    const numbers: number[] = []
+    // Patrón que captura el número al final después del último guión
+    const skuPattern = /-(\d+)$/
+    
+    data.forEach(item => {
+      if (item.sku) {
+        const match = item.sku.match(skuPattern)
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10)
+          if (!isNaN(num) && num > 0) {
+            numbers.push(num)
+          }
+        }
+      }
+    })
+
+    if (numbers.length === 0) {
+      return 1
+    }
+
+    // Encontrar el siguiente número disponible
+    const maxNumber = Math.max(...numbers)
+    return maxNumber + 1
+  } catch (error) {
+    console.error('Error en getNextSkuNumberByCategory:', error)
+    return 1
+  }
+}
+
+/**
+ * Obtiene el siguiente número secuencial para un SKU basado en el prefijo
+ * @param skuPrefix Prefijo del SKU (ej: "SAN-SP")
+ * @returns El siguiente número disponible (ej: 1, 2, 3...)
+ * @deprecated Usar getNextSkuNumberByCategory en su lugar para numeración por categoría
+ */
+export async function getNextSkuNumber(skuPrefix: string): Promise<number> {
+  try {
+    // Escapar caracteres especiales para la búsqueda LIKE
+    const escapedPrefix = skuPrefix.replace(/%/g, '\\%').replace(/_/g, '\\_')
+    
+    // Buscar todos los SKUs que empiecen con el prefijo seguido de un guión y números
+    const { data, error } = await supabase
+      .from('productos')
+      .select('sku')
+      .like('sku', `${escapedPrefix}-%`)
+
+    if (error) {
+      console.error('Error obteniendo siguiente número SKU:', error)
+      return 1 // Retornar 1 si hay error
+    }
+
+    if (!data || data.length === 0) {
+      return 1 // Si no hay productos con ese prefijo, empezar en 1
+    }
+
+    // Extraer los números de los SKUs existentes
+    const numbers: number[] = []
+    const prefixPattern = new RegExp(`^${skuPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+)$`)
+    
+    data.forEach(item => {
+      if (item.sku) {
+        const match = item.sku.match(prefixPattern)
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10)
+          if (!isNaN(num) && num > 0) {
+            numbers.push(num)
+          }
+        }
+      }
+    })
+
+    if (numbers.length === 0) {
+      return 1
+    }
+
+    // Encontrar el siguiente número disponible
+    const maxNumber = Math.max(...numbers)
+    return maxNumber + 1
+  } catch (error) {
+    console.error('Error en getNextSkuNumber:', error)
+    return 1
+  }
+}
+
 // ============================================
 // QUERIES PARA CARRITO
 // ============================================

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { crearProducto, getCategorias } from '@/lib/supabase-queries'
+import { crearProducto, getCategorias, getNextSkuNumberByCategory } from '@/lib/supabase-queries'
 import { showSuccess, showError } from '@/lib/swal'
 import { uploadImage, validateImageFile } from '@/lib/supabase-storage'
 import ImageUploader from '@/components/ImageUploader'
@@ -81,12 +81,35 @@ export default function NuevoProductoPage() {
   const variantImageInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
   const [uploadingVariantImage, setUploadingVariantImage] = useState<string | null>(null)
   
+  const lastGeneratedPrefix = useRef<string>('')
+  
   // Selección múltiple de variantes
   const [selectedVariants, setSelectedVariants] = useState<Set<string>>(new Set())
 
   // Obtener nombres de atributos existentes para filtrar
   const existingAttributeNames = attributes.map(a => a.name)
   
+  // Funciones helper para generar SKU
+  const getCategoryPrefix = (categoryName: string): string => {
+    if (!categoryName || categoryName.trim().length === 0) return ''
+    // Obtener las primeras 3 letras en mayúsculas
+    const cleanName = categoryName.trim().toUpperCase().replace(/[^A-Z]/g, '')
+    return cleanName.substring(0, 3).padEnd(3, 'X') // Si tiene menos de 3 letras, rellenar con X
+  }
+
+  const getProductTypePrefix = (productType: string): string => {
+    if (!productType || productType.trim().length === 0) return ''
+    // Obtener las primeras letras de cada palabra
+    const words = productType.trim().split(/\s+/)
+    return words
+      .map(word => {
+        const cleanWord = word.replace(/[^a-zA-Z]/g, '')
+        return cleanWord.charAt(0).toUpperCase()
+      })
+      .join('')
+      .substring(0, 10) // Limitar a 10 caracteres máximo
+  }
+
   // Cargar categorías
   useEffect(() => {
     async function loadCategorias() {
@@ -99,6 +122,103 @@ export default function NuevoProductoPage() {
     }
     loadCategorias()
   }, [])
+
+  // Generar SKU automáticamente cuando cambien categoría o tipo de producto
+  useEffect(() => {
+    let cancelled = false
+
+    async function generateSku() {
+      // Solo generar si hay categoría seleccionada
+      if (!categoriaId) {
+        return
+      }
+
+      // Esperar a que las categorías se carguen
+      if (categorias.length === 0) {
+        return
+      }
+
+      // Obtener el nombre de la categoría
+      const categoria = categorias.find(cat => cat.id === categoriaId)
+      if (!categoria || !categoria.nombre) {
+        return
+      }
+
+      const categoryPrefix = getCategoryPrefix(categoria.nombre)
+      const typePrefix = getProductTypePrefix(tipoProducto)
+
+      // Si no hay prefijo de categoría, no generar SKU
+      if (!categoryPrefix || categoryPrefix.length < 3) {
+        return
+      }
+
+      // Construir el prefijo completo del SKU
+      let skuPrefix = categoryPrefix
+      if (typePrefix && typePrefix.length > 0) {
+        skuPrefix = `${categoryPrefix}-${typePrefix}`
+      } else {
+        // Si no hay tipo de producto, usar solo el prefijo de categoría
+        skuPrefix = categoryPrefix
+      }
+
+      // Si el prefijo no cambió y el SKU ya existe con ese prefijo, no regenerar
+      if (skuPrefix === lastGeneratedPrefix.current && sku && sku.startsWith(skuPrefix)) {
+        const currentPrefix = sku.split('-').slice(0, -1).join('-')
+        if (currentPrefix === skuPrefix) {
+          return
+        }
+      }
+
+      // Actualizar el prefijo generado
+      lastGeneratedPrefix.current = skuPrefix
+
+      // Generar SKU temporal mientras se consulta la BD
+      const tempSku = `${skuPrefix}-001`
+      const currentSkuValue = sku || ''
+      const shouldShowTemp = !currentSkuValue || 
+                            currentSkuValue.trim() === '' || 
+                            !currentSkuValue.startsWith(skuPrefix)
+
+      if (shouldShowTemp) {
+        setSku(tempSku)
+      }
+
+      try {
+        // Obtener el siguiente número secuencial basado en la categoría
+        const nextNumber = await getNextSkuNumberByCategory(categoriaId)
+        
+        if (cancelled) return
+        
+        const newSku = `${skuPrefix}-${nextNumber.toString().padStart(3, '0')}`
+        
+        // Actualizar con el número correcto
+        if (shouldShowTemp) {
+          setSku(newSku)
+        }
+      } catch (error) {
+        console.error('Error generando SKU:', error)
+        if (cancelled) return
+        
+        // Si hay error, generar un SKU básico sin consultar la BD
+        const fallbackNumber = 1
+        const newSku = `${skuPrefix}-${fallbackNumber.toString().padStart(3, '0')}`
+        const currentSkuValue = sku || ''
+        const shouldUpdate = !currentSkuValue || 
+                            currentSkuValue.trim() === '' || 
+                            !currentSkuValue.startsWith(skuPrefix)
+        if (shouldUpdate) {
+          setSku(newSku)
+        }
+      }
+    }
+
+    generateSku()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoriaId, tipoProducto, categorias])
 
   // Funciones para manejar atributos dinámicos
   const addAttribute = (name: string) => {
@@ -874,19 +994,19 @@ export default function NuevoProductoPage() {
               <input
                 type="text"
                 className={`${styles.input} ${errors.sku ? styles.inputError : ''}`}
-                placeholder="CAM-ALG-001"
+                placeholder="SAN-SP-001"
                 value={sku}
-                onChange={(e) => {
-                  setSku(e.target.value)
-                  if (errors.sku) {
-                    setErrors({ ...errors, sku: '' })
-                  }
-                }}
+                readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 data-error={errors.sku ? 'true' : undefined}
                 required
               />
               {errors.sku && <span className={styles.errorMessage}>{errors.sku}</span>}
-              <small className={styles.helpText}>Solo letras, números, guiones y guiones bajos</small>
+              <small className={styles.helpText}>
+                {categoriaId && tipoProducto 
+                  ? 'Se genera automáticamente basado en la categoría y tipo de producto.'
+                  : 'Se generará automáticamente al seleccionar categoría y tipo de producto.'}
+              </small>
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>
