@@ -1,0 +1,106 @@
+.priceModalContent {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.priceModalDescription {
+  color: #334155;
+  font-size: 14px;
+  text-align: center;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.priceInputContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 2px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.priceInputContainer:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.currencyPrefix {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  padding: 12px 16px;
+  border-right: 2px solid #d1d5db;
+  font-weight: 500;
+}
+
+.priceInput {
+  flex: 1;
+  border: none;
+  padding: 12px 16px;
+  font-size: 16px;
+  text-align: left;
+  background-color: white;
+  color: #111827;
+  font-weight: 500;
+}
+
+.priceInput:focus {
+  outline: none;
+}
+
+.priceInput::placeholder {
+  color: #9ca3af;
+}
+
+.priceInput.inputError {
+  color: #dc2626;
+}
+
+.errorMessage {
+  color: #dc2626;
+  font-size: 13px;
+  text-align: center;
+  margin-top: -8px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.cancelButton, .confirmButton {
+  flex: 1;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.cancelButton {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.cancelButton:hover {
+  background-color: #e5e7eb;
+}
+
+.confirmButton {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.confirmButton:hover {
+  background-color: #2563eb;
+}

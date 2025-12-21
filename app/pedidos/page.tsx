@@ -106,10 +106,6 @@ export default function PedidosPage() {
     <div className={styles.container}>
       <div className={styles.header}>
         <h1 className={styles.title}>Pedidos</h1>
-        <button className={styles.createButton}>
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-          <span>Crear Pedido</span>
-        </button>
       </div>
 
       <div className={styles.filters}>

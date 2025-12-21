@@ -10,6 +10,7 @@ import ImageUploader from '@/components/ImageUploader'
 import AddAttributeModal from '@/components/AddAttributeModal'
 import AddValueModal from '@/components/AddValueModal'
 import styles from './nuevo.module.css'
+import SetValueModal from '@/components/SetPriceModal'
 
 interface Variant {
   id: string
@@ -44,10 +45,7 @@ export default function NuevoProductoPage() {
     name: string
     values: string[]
     activo: boolean
-  }>>([
-    { id: 'color', name: 'Color', values: ['Negro', 'Blanco'], activo: true },
-    { id: 'talla', name: 'Talla', values: ['S', 'M', 'L'], activo: true }
-  ])
+  }>>([])
   const [variants, setVariants] = useState<Array<{
     id: string
     attributes: Record<string, string> // { Color: "Negro", Talla: "M" }
@@ -474,6 +472,17 @@ export default function NuevoProductoPage() {
     })
   }, [hasVariants, attributes, sku])
 
+  // Actualizar el stock total cuando cambien las variantes
+  useEffect(() => {
+    if (hasVariants && variants.length > 0) {
+      const totalStock = variants.reduce((sum, v) => sum + (v.stock || 0), 0)
+      setStock(totalStock.toString())
+    } else if (!hasVariants) {
+      // Limpiar el stock si se desactiva variantes
+      // setStock('0') // Opcional: limpiar o mantener el valor anterior
+    }
+  }, [variants, hasVariants])
+
   // Función para actualizar variante
   const updateVariant = (id: string, field: string, value: any) => {
     setVariants(variants.map(v => {
@@ -593,14 +602,28 @@ export default function NuevoProductoPage() {
     setSelectedVariants(new Set())
   }
 
-  // Función para aplicar el precio original a todas las variantes
-  const applyPriceToAllVariants = () => {
-    const precioNum = parseFloat(precio.replace(/[^0-9.]/g, ''))
-    if (isNaN(precioNum) || precioNum <= 0) {
-      return
+  // State for modals
+  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false)
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false)
+
+  // Función para aplicar valores a todas las variantes (precio o stock)
+  const applyValueToAllVariants = (type: 'precio' | 'stock') => {
+    if (type === 'precio') {
+      setIsPriceModalOpen(true)
+    } else if (type === 'stock') {
+      setIsStockModalOpen(true)
     }
-    const precioFormateado = precioNum.toFixed(2)
-    setVariants(variants.map(v => ({ ...v, precio: precioFormateado })))
+  }
+
+  const handlePriceConfirm = (newPrice: string) => {
+    setVariants(variants.map(v => ({ ...v, precio: newPrice })))
+    setIsPriceModalOpen(false)
+  }
+
+  const handleStockConfirm = (newStock: string) => {
+    const stockNum = parseInt(newStock, 10)
+    setVariants(variants.map(v => ({ ...v, stock: stockNum })))
+    setIsStockModalOpen(false)
   }
 
   // Función de validación
@@ -1017,15 +1040,25 @@ export default function NuevoProductoPage() {
                 className={`${styles.input} ${errors.stock ? styles.inputError : ''}`}
                 value={stock}
                 onChange={(e) => {
-                  setStock(e.target.value)
+                  if (!hasVariants) {
+                    setStock(e.target.value)
+                  }
                   if (errors.stock) {
                     setErrors({ ...errors, stock: '' })
                   }
                 }}
                 data-error={errors.stock ? 'true' : undefined}
                 min="0"
+                disabled={hasVariants}
+                style={hasVariants ? { backgroundColor: '#f9fafb', cursor: 'not-allowed', opacity: 0.7 } : {}}
+                placeholder={hasVariants ? 'Calculado automáticamente' : '0'}
               />
               {errors.stock && <span className={styles.errorMessage}>{errors.stock}</span>}
+              {hasVariants && (
+                <small className={styles.helpText} style={{ color: '#3b82f6', marginTop: '4px' }}>
+                  💾 Stock calculado automáticamente desde las variantes
+                </small>
+              )}
             </div>
           </div>
 
@@ -1188,14 +1221,24 @@ export default function NuevoProductoPage() {
                     <div className={styles.variantsHeader}>
                       <p className={styles.variantsCount}>{variants.length} variantes generadas</p>
                       <div className={styles.variantsActions}>
-                        <button 
-                          className={styles.actionButton}
-                          onClick={applyPriceToAllVariants}
-                          title={`Aplicar precio de Bs. ${parseFloat(precio.replace(/[^0-9.]/g, '')) || 0} a todas las variantes`}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
-                          <span>Copiar</span>
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            className={styles.actionButton}
+                            onClick={() => applyValueToAllVariants('precio')}
+                            title={`Aplicar precio de Bs. ${parseFloat(precio.replace(/[^0-9.]/g, '')) || 0} a todas las variantes`}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>attach_money</span>
+                            <span>Copiar Precio</span>
+                          </button>
+                          <button 
+                            className={styles.actionButton}
+                            onClick={() => applyValueToAllVariants('stock')}
+                            title="Aplicar stock a todas las variantes"
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>inventory</span>
+                            <span>Copiar Stock</span>
+                          </button>
+                        </div>
                         <button
                           className={styles.actionButton}
                           onClick={handleBulkToggleActive}
@@ -1604,6 +1647,27 @@ export default function NuevoProductoPage() {
         onAdd={addAttributeValue}
         attributeName={attributes.find(a => a.id === selectedAttributeForValue)?.name || ''}
         existingValues={attributes.find(a => a.id === selectedAttributeForValue)?.values || []}
+      />
+
+      <SetValueModal 
+        isOpen={isPriceModalOpen}
+        onClose={() => setIsPriceModalOpen(false)}
+        onConfirm={handlePriceConfirm}
+        currentValue={precio || '0.00'}
+        type="price"
+        prefix="Bs."
+        maxValue={999999.99}
+      />
+      
+      <SetValueModal 
+        isOpen={isStockModalOpen}
+        onClose={() => setIsStockModalOpen(false)}
+        onConfirm={handleStockConfirm}
+        currentValue="0"
+        type="stock"
+        maxValue={999999}
+        title="Establecer stock para todas las variantes"
+        description="Ingrese el stock que se aplicará a todas las variantes del producto."
       />
     </div>
   )

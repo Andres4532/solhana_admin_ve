@@ -166,6 +166,12 @@ export async function crearProducto(producto: {
     throw error
   }
 
+  // Calcular stock total si hay variantes
+  let stockTotal = producto.stock
+  if (producto.tiene_variantes && producto.variantes && producto.variantes.length > 0) {
+    stockTotal = producto.variantes.reduce((sum, v) => sum + (v.stock || 0), 0)
+  }
+
   // Crear el producto principal
   const { data: productoData, error: productoError } = await supabase
     .from('productos')
@@ -177,7 +183,7 @@ export async function crearProducto(producto: {
       precio: producto.precio,
       descuento: producto.descuento || 0,
       precio_original: producto.precio_original || null,
-      stock: producto.stock,
+      stock: stockTotal,
       categoria_id: producto.categoria_id || null,
       tipo_producto: producto.tipo_producto || null,
       estado: producto.estado,
@@ -202,6 +208,22 @@ export async function crearProducto(producto: {
   }
 
   const productoId = productoData.id
+
+  // Helpers para limpiar en caso de fallo (rollback manual)
+  const rollbackProducto = async () => {
+    try {
+      await supabase.from('producto_imagenes').delete().eq('producto_id', productoId)
+    } catch (e) {}
+    try {
+      await supabase.from('producto_variantes').delete().eq('producto_id', productoId)
+    } catch (e) {}
+    try {
+      await supabase.from('producto_especificaciones').delete().eq('producto_id', productoId)
+    } catch (e) {}
+    try {
+      await supabase.from('productos').delete().eq('id', productoId)
+    } catch (e) {}
+  }
 
   // Crear variantes si existen
   if (producto.variantes && producto.variantes.length > 0) {
@@ -249,13 +271,14 @@ export async function crearProducto(producto: {
       .insert(variantesData)
 
     if (variantesError) {
+      // Intentar rollback manual
+      await rollbackProducto()
       // Mejorar el mensaje de error para SKU duplicado
       if (variantesError.code === '23505' && variantesError.message?.includes('producto_variantes_sku_key')) {
         const error = new Error(`El SKU de una variante ya está en uso. Por favor, verifica que todos los SKUs de las variantes sean únicos.`)
         ;(error as any).code = 'DUPLICATE_VARIANT_SKU'
         throw error
       }
-      // Lanzar el error en lugar de solo loguearlo
       console.error('Error creando variantes:', variantesError)
       throw variantesError
     }
@@ -268,14 +291,15 @@ export async function crearProducto(producto: {
       nombre: espec.nombre,
       valor: espec.valor || null
     }))
-
     const { error: especError } = await supabase
       .from('producto_especificaciones')
       .insert(especificacionesData)
 
     if (especError) {
+      // Intentar rollback manual
+      await rollbackProducto()
       console.error('Error creando especificaciones:', especError)
-      // No lanzar error, solo loguear
+      throw especError
     }
   }
 
@@ -287,14 +311,14 @@ export async function crearProducto(producto: {
       orden: img.orden || index,
       es_principal: img.es_principal || index === 0
     }))
-
     const { error: imagenesError } = await supabase
       .from('producto_imagenes')
       .insert(imagenesData)
 
     if (imagenesError) {
+      await rollbackProducto()
       console.error('Error creando imágenes:', imagenesError)
-      // No lanzar error, solo loguear
+      throw imagenesError
     }
   }
 
@@ -429,6 +453,26 @@ export async function actualizarVariantesProducto(
       console.error('Error creando variantes:', insertError)
       throw insertError
     }
+  }
+
+  // Recalcular el stock total del producto basado en la suma de variantes
+  const { data: variantesActuales } = await supabase
+    .from('producto_variantes')
+    .select('stock')
+    .eq('producto_id', productoId)
+    .eq('activo', true)
+
+  const stockTotal = (variantesActuales || []).reduce((sum, v) => sum + (v.stock || 0), 0)
+
+  // Actualizar el stock del producto
+  const { error: updateStockError } = await supabase
+    .from('productos')
+    .update({ stock: stockTotal, updated_at: new Date().toISOString() })
+    .eq('id', productoId)
+
+  if (updateStockError) {
+    console.error('Error actualizando stock del producto:', updateStockError)
+    throw updateStockError
   }
 }
 

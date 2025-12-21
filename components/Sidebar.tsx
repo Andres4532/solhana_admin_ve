@@ -83,10 +83,6 @@ export default function Sidebar() {
             <span className="material-symbols-outlined">settings</span>
             <span>Configuración</span>
           </Link>
-          <Link href="/ayuda" className={styles.navItem}>
-            <span className="material-symbols-outlined">help</span>
-            <span>Ayuda</span>
-          </Link>
         </div>
       </div>
     </aside>
